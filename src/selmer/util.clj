@@ -189,6 +189,8 @@
   (or (.startsWith path java.io.File/separator)
       (and (on-windows?) (re-matches #"[a-zA-Z]:.*" path))))
 
+(def ^:dynamic *resource-fn* io/resource)
+
 (defn resource-path [template]
   (if (instance? java.net.URL template)
     template
@@ -201,11 +203,11 @@
           *url-stream-handler*
           (java.net.URL. nil f
                          ^java.net.URLStreamHandler *url-stream-handler*)
-          :else (io/resource f)))
+          :else (*resource-fn* f)))
       (cond
         *url-stream-handler* (java.net.URL. nil ^String template
                                             ^java.net.URLStreamHandler *url-stream-handler*)
-        :else (io/resource template)))))
+        :else (*resource-fn* template)))))
 
 (defn resource-last-modified [^java.net.URL resource]
   (let [path (.getPath resource)]

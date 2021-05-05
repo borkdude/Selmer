@@ -1257,3 +1257,10 @@
                      "debug-value"))
   (testing "basic rendering escapes HTML"
     (is (str/includes? (basic-edn->html {:a "<pre>"}) "&quot"))))
+
+(deftest resource-fn-test
+  (is
+   (= (fix-line-sep "Base template.\n\n\t\n<p></p>\n\n\n")
+      (binding [*resource-fn* (fn [_path]
+                                (.toURL (io/file "test/templates/child.html")))]
+        (render-file "foobar" {})))))
