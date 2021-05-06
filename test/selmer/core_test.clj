@@ -1260,7 +1260,7 @@
 
 (deftest resource-fn-test
   (is
-   (= (fix-line-sep "Base template.\n\n\t\n<p></p>\n\n\n")
+   (= "foo - bar"
       (binding [*resource-fn* (fn [_path]
-                                (.toURL (io/file "test/templates/child.html")))]
-        (render-file "foobar" {})))))
+                                (.toURL (io/file "test/templates/snippet.html")))]
+        (render-file "foobar" {:url "foo" :gridid "bar"})))))
