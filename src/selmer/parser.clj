@@ -98,26 +98,27 @@
 ;; render-template renders at runtime, accepts
 ;; post-parsing vectors of INode elements.
 
+(def ^:dynamic *ignore-ws* false)
+
 (defn render-template
   " vector of ^selmer.node.INodes and a context map."
   [template context-map]
-  (let [buf (StringBuilder.)]
-    (loop [nodes template
-           ignore-ws? false]
-      (when-first [^selmer.node.INode node nodes]
-        (let [m (meta node)
-              toggle-ws? (some-> m :tag :toggle-ws?)
-              ignore-ws? (if toggle-ws?
-                           (not ignore-ws?)
-                           ignore-ws?)]
-          (if-let [value (.render-node node context-map)]
-            (let [value (if ignore-ws? (str/trim value) value)]
-              (when (or (not ignore-ws?)
-                        (not (str/blank? value)))
-                (.append buf value)))
-            (.append buf (*missing-value-formatter* (:tag m) context-map)))
-          (recur (rest nodes) ignore-ws?))))
-    (.toString buf)))
+  (binding [*ignore-ws* *ignore-ws*]
+    (let [buf (StringBuilder.)]
+      (loop [nodes template]
+        (when-first [^selmer.node.INode node nodes]
+          (let [m (meta node)
+                toggle-ws? (some-> m :tag :toggle-ws?)]
+            (when toggle-ws? (set! *ignore-ws* (not *ignore-ws*)))
+            (if-let [value (.render-node node context-map)]
+              (let [ignore-ws? *ignore-ws*
+                    value (if ignore-ws? (str/trim value) value)]
+                (when (or (not ignore-ws?)
+                          (not (str/blank? value)))
+                  (.append buf value)))
+              (.append buf (*missing-value-formatter* (:tag m) context-map)))
+            (recur (rest nodes)))))
+      (.toString buf))))
 
 (defn render
   " render takes the string, the context-map and possibly also opts. "
