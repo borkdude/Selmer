@@ -8,15 +8,16 @@
   means the first time we see a template *at runtime*, not the
   implementation's compile-time. "
   (:require
-    [clojure.set :as set]
-    [clojure.string :as string]
-    [selmer.template-parser :refer [preprocess-template]]
-    [selmer.filters :refer [filters]]
-    [selmer.filter-parser :refer [compile-filter-body literal? split-value]]
-    [selmer.tags :refer :all]
-    [selmer.util :refer :all]
-    [selmer.validator :refer [validation-error]]
-    selmer.node)
+   [clojure.set :as set]
+   [clojure.string :as string]
+   [selmer.template-parser :refer [preprocess-template]]
+   [selmer.filters :refer [filters]]
+   [selmer.filter-parser :refer [compile-filter-body literal? split-value]]
+   [selmer.tags :refer :all]
+   [selmer.util :refer :all]
+   [selmer.validator :refer [validation-error]]
+   selmer.node
+   [clojure.string :as str])
   (:import [selmer.node TextNode FunctionNode]))
 
 ;; Ahead decl because some fns call into each other.
@@ -101,10 +102,21 @@
   " vector of ^selmer.node.INodes and a context map."
   [template context-map]
   (let [buf (StringBuilder.)]
-    (doseq [^selmer.node.INode element template]
-      (if-let [value (.render-node element context-map)]
-        (.append buf value)
-        (.append buf (*missing-value-formatter* (:tag (meta element)) context-map))))
+    (loop [nodes template
+           ignore-ws? false]
+      (when-first [^selmer.node.INode node nodes]
+        (let [m (meta node)
+              toggle-ws? (some-> m :tag :toggle-ws?)
+              ignore-ws? (if toggle-ws?
+                           (not ignore-ws?)
+                           ignore-ws?)]
+          (if-let [value (.render-node node context-map)]
+            (let [value (if ignore-ws? (str/trim value) value)]
+              (when (or (not ignore-ws?)
+                        (not (str/blank? value)))
+                (.append buf value)))
+            (.append buf (*missing-value-formatter* (:tag m) context-map)))
+          (recur (rest nodes) ignore-ws?))))
     (.toString buf)))
 
 (defn render

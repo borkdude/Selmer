@@ -91,29 +91,39 @@
 (defn read-tag-info [rdr]
   (let [buf      (StringBuilder.)
         tag-type (if (= *filter-open* (read-char rdr)) :filter :expr)
-        filter? (identical? :filter tag-type )]
-    (loop [ch1 (read-char rdr)
-           ch2 (read-char rdr)]
-      (when-not (or (nil? ch1)
-                    (and (or (= *filter-close* ch1) (= *tag-second* ch1))
-                         (= *tag-close* ch2)))
-        (.append buf ch1)
-        (recur ch2 (read-char rdr))))
-    (let [content (->> (.toString buf)
-                       (check-tag-args)
-                       (re-seq (if filter?
-                                 #"(?:[^\"]|\"[^\"]*\")+"
-                                 #"(?:[^\s\"]|\"[^\"]*\")+"))
-                       (remove empty?)
-                       (map (fn [^String s] (.trim s))))
-          tag-info (merge {:tag-type tag-type}
-                          (if (= :filter tag-type)
-                            {:tag-value (first content)}
-                            {:tag-name (keyword (first content))
-                             :args     (next content)}))]
-          (when *tags*
-            (swap! *tags* conj tag-info))
-          tag-info)))
+        filter? (identical? :filter tag-type )
+        res (loop [ch1 (read-char rdr)
+                   ch2 (read-char rdr)
+                   leading-ignore-ws? false]
+              (if-not (or (nil? ch1)
+                          (and (or (= *filter-close* ch1) (= *tag-second* ch1))
+                               (= *tag-close* ch2)))
+                (do (.append buf ch1)
+                    (let [leading-ignore-ws? (and (= \- ch1)
+                                                  (= *tag-second* ch2))]
+                      (recur ch2 (read-char rdr) leading-ignore-ws?)))
+                {:toggle-ws? leading-ignore-ws?}))
+        toggle-ws? (:toggle-ws? res)
+        content (str buf)
+        content (if toggle-ws?
+                  (subs content 0 (dec (count content)))
+                  content)
+        content (->> content
+                     (check-tag-args)
+                     (re-seq (if filter?
+                               #"(?:[^\"]|\"[^\"]*\")+"
+                               #"(?:[^\s\"]|\"[^\"]*\")+"))
+                     (remove empty?)
+                     (map (fn [^String s] (.trim s))))
+        tag-info (merge {:tag-type tag-type}
+                        (if (= :filter tag-type)
+                          {:tag-value (first content)}
+                          {:tag-name (keyword (first content))
+                           :args     (next content)
+                           :toggle-ws? toggle-ws?}))]
+    (when *tags*
+      (swap! *tags* conj tag-info))
+    tag-info))
 
 (defn peek-rdr [^java.io.Reader rdr]
   (.mark rdr 1)
